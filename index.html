@@ -3,30 +3,30 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>문서 교정 도우미 v3.7</title>
-<link rel="stylesheet" href="style.css?v=3.7" />
+<title>문서 교정 도우미 v3.8</title>
+<link rel="stylesheet" href="style.css?v=3.8" />
 </head>
 <body>
-<header><div class="head"><div><h1>문서 교정 도우미 <span class="meta">v3.7 Browser</span></h1><div class="sub">PDF · HWPX · DOCX 지원 · 단독 교정과 A 원본 ↔ B 작업본 비교를 분리</div></div><div class="mode-tabs"><button id="singleTab" class="btn active">단독 교정</button><button id="compareTab" class="btn">A ↔ B 비교</button></div></div></header>
+<header><div class="head"><div><h1>문서 교정 도우미 <span class="meta">v3.8 Browser</span></h1><div class="sub">PDF · HWPX · DOCX 지원 · 오타 · 자모깨짐 · 맞춤법 중심 검사</div></div><div class="mode-tabs"><button id="singleTab" class="btn active">단독 교정</button><button id="compareTab" class="btn">A ↔ B 비교</button></div></div></header>
 <main>
 <div id="status" class="status"></div>
 <section id="singleMode" class="mode show">
-  <label id="singleDrop" class="drop single-file"><div><strong>교정할 파일 1개를 넣으세요</strong><small>PDF / HWPX / DOCX · 단독 교정은 다른 기준 문서 없이 문서 자체를 검사합니다.</small></div><input id="singleInput" type="file" accept=".pdf,.hwpx,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label>
+  <label id="singleDrop" class="drop single-file"><div><strong>교정할 파일 1개를 넣으세요</strong><small>PDF / HWPX / DOCX · 오타, 자모깨짐, 맞춤법을 검사합니다.</small></div><input id="singleInput" type="file" accept=".pdf,.hwpx,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label>
   <div class="single-grid">
     <article class="card"><div class="card-head"><div><span class="card-title">원본 문서</span> <span id="singleMeta" class="meta"></span></div></div><div id="singlePreview" class="preview"><div class="side-empty">파일을 올리면 원본/텍스트 미리보기가 표시됩니다.</div></div></article>
     <article class="card"><div class="card-head"><div><span class="card-title">교정 · 수정</span> <span id="singleUnits" class="meta"></span></div><div class="inline"><button id="proofBtn" class="btn soft" disabled>교정 검사</button><button id="applyCertainBtn" class="btn" disabled>확정 오류 모두 적용</button><button id="singleDocxBtn" class="btn primary" disabled>Word로 저장</button></div></div><div class="right-stack"><div id="proofArea" class="proof-area"><div id="proofSummary" class="proof-summary">교정 검사를 누르면 결과가 여기에 표시됩니다.</div><div id="issueList" class="issue-list"></div></div><div id="singleEditor" class="editor-area"><div class="empty-box">추출된 텍스트가 이곳에 표시됩니다.</div></div></div></article>
   </div>
 </section>
 <section id="compareMode" class="mode">
-  <div class="compare-toolbar"><div><b>A 원본 ↔ B 작업본 비교</b><div class="hint">파일 형식과 순서는 자유롭습니다. 비교 항목을 누르면 해당 구간으로 이동하고, HWPX/DOCX 본문에서는 실제 다른 단어를 노란색으로 표시합니다.</div></div><div class="inline"><div class="checks"><label><input id="bodyOnly" type="checkbox" checked> 본문만 비교</label></div><button id="swapBtn" class="btn">A ↔ B 바꾸기</button><button id="runCompareBtn" class="btn primary" disabled>비교 시작</button></div></div>
+  <div class="compare-toolbar"><div><b>A 원본 ↔ B 작업본 오타 비교</b><div class="hint">일반적인 내용 변경·삭제·추가·문장부호/공백은 제외하고 오타, 자모깨짐, 맞춤법만 표시합니다.</div></div><div class="inline"><div class="checks"><label><input id="bodyOnly" type="checkbox" checked> 본문만 비교</label></div><button id="swapBtn" class="btn">A ↔ B 바꾸기</button><button id="runCompareBtn" class="btn primary" disabled>비교 시작</button></div></div>
   <div class="compare-grid">
     <article class="card doc-side"><div class="card-head"><div><span class="side-role">A 원본</span> <span id="aMeta" class="meta"></span></div><button id="aDocxBtn" class="mini" disabled>A 수정본 Word</button></div><div class="side-upload"><label id="aDrop" class="drop"><div><strong>A 원본 파일</strong><small>PDF / HWPX / DOCX</small></div><input id="aInput" type="file" accept=".pdf,.hwpx,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label></div><div id="aPreview" class="side-preview"><div class="side-empty">A 원본을 넣어주세요.</div></div></article>
-    <article class="card compare-center"><div class="card-head"><div><span class="card-title">비교 · 수정</span><div class="hint">같은 문장을 자동으로 맞춰 차이만 보여줍니다. PDF 자체 디자인 파일은 직접 수정하지 않고, 추출 텍스트를 수정한 뒤 Word로 저장합니다.</div></div></div><div id="compareSummary" class="compare-summary">A와 B 파일을 넣은 뒤 비교 시작을 누르세요.</div><div id="compareList" class="compare-list"><div class="empty-box">비교 결과가 이곳에 표시됩니다.</div></div></article>
+    <article class="card compare-center"><div class="card-head"><div><span class="card-title">오타 비교 · 수정</span></div></div><div id="compareSummary" class="compare-summary">A와 B 파일을 넣은 뒤 비교 시작을 누르세요.</div><div id="compareList" class="compare-list"><div class="empty-box">비교 결과가 이곳에 표시됩니다.</div></div></article>
     <article class="card doc-side"><div class="card-head"><div><span class="side-role">B 작업본</span> <span id="bMeta" class="meta"></span></div><button id="bDocxBtn" class="mini" disabled>B 수정본 Word</button></div><div class="side-upload"><label id="bDrop" class="drop"><div><strong>B 작업본 파일</strong><small>PDF / HWPX / DOCX</small></div><input id="bInput" type="file" accept=".pdf,.hwpx,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label></div><div id="bPreview" class="side-preview"><div class="side-empty">B 작업본을 넣어주세요.</div></div></article>
   </div>
 </section>
-<div class="footer-note">PDF는 브라우저 PDF 뷰어에서 해당 페이지로 이동합니다. HWPX/DOCX는 별도 위치 상자 없이 본문 안의 실제 다른 단어를 노란색으로 직접 강조합니다. PDF/HWPX/DOCX에서 추출한 텍스트를 수정하며, 현재 수정 결과 저장은 DOCX로 제공합니다. PDF 원본의 디자인/레이아웃 자체는 자동 변경하지 않습니다.</div>
+<div class="footer-note">HWPX/DOCX는 위치 보기 시 해당 오타를 노란색으로 강조합니다. PDF는 해당 페이지로 이동합니다. 수정 결과는 DOCX로 저장할 수 있습니다.</div>
 </main>
-<script type="module" src="bootstrap.js?v=3.7"></script>
+<script type="module" src="bootstrap.js?v=3.8"></script>
 </body>
 </html>
