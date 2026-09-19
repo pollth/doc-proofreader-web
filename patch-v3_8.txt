@@ -1,0 +1,146 @@
+// v3.8 patch: 오타/자모깨짐/맞춤법만 검사 + 단독교정 종결형 오타 보강
+const scanUnitV38Base = scanUnit;
+
+function proofGroupV38(x){
+  if(x.sub === '자모 깨짐') return 'jamo';
+  const hint = `${x.sub||''} ${x.reason||''}`;
+  if(/표준|맞춤법|활용/.test(hint) && !/오타|중복/.test(hint)) return 'spell';
+  return 'typo';
+}
+
+scanUnit = function(text, unit){
+  // 기존 검사 결과 중 띄어쓰기/문장부호/검토 후보는 제외
+  const out = scanUnitV38Base(text, unit).filter(x =>
+    x.category === '확정 오류' && x.sub !== '띄어쓰기' && x.category !== '문장부호 추천'
+  );
+
+  // 완성형 한글 종결형 오타는 별도 직검사해 캐시/기존 규칙 영향 없이 반드시 검출
+  const endings = [
+    ['습나다','습니다'],
+    ['합나다','합니다'],
+    ['됩나다','됩니다'],
+    ['입나다','입니다']
+  ];
+  for(const [bad,good] of endings){
+    let pos = text.indexOf(bad);
+    while(pos >= 0){
+      if(!out.some(x => x.index === pos && x.before === bad))
+        addIssue(out,unit,'확정 오류','오타',bad,good,pos,'종결형 오타',true);
+      pos = text.indexOf(bad,pos+bad.length);
+    }
+  }
+  return out;
+};
+
+runProof = function(){
+  const d=state.single;
+  if(!d)return;
+  let all=[];
+  d.units.forEach((t,i)=>all.push(...scanUnit(t,i+1)));
+  state.issues=all;
+  singleFilterV37='all';
+  renderIssues();
+  const c={typo:0,jamo:0,spell:0};
+  all.forEach(x=>c[proofGroupV38(x)]++);
+  setStatus(`교정 검사 완료: ${all.length}건 · 오타 ${c.typo} · 자모깨짐 ${c.jamo} · 맞춤법 ${c.spell}`);
+};
+
+function renderSingleFiltersV38(open){
+  ensureFilterBarsV37();
+  const counts={all:open.length,typo:0,jamo:0,spell:0};
+  open.forEach(x=>counts[proofGroupV38(x)]++);
+  const items=[['all','전체'],['typo','오타'],['jamo','자모깨짐'],['spell','맞춤법']];
+  $('#singleFilterBar').innerHTML=items.map(([k,label])=>
+    `<button class="filter-btn ${singleFilterV37===k?'active':''}" data-sfilter="${k}">${label} <span>${counts[k]||0}</span></button>`
+  ).join('');
+}
+
+renderIssues = function(){
+  ensureFilterBarsV37();
+  const open=state.issues.filter(x=>x.state==='open');
+  renderSingleFiltersV38(open);
+  const arr=singleFilterV37==='all'?open:open.filter(x=>proofGroupV38(x)===singleFilterV37);
+  const sum=$('#proofSummary'),list=$('#issueList');
+  const c={typo:0,jamo:0,spell:0};
+  open.forEach(x=>c[proofGroupV38(x)]++);
+  sum.textContent=`교정 결과 ${open.length}건 · 오타 ${c.typo} · 자모깨짐 ${c.jamo} · 맞춤법 ${c.spell}`;
+  $('#applyCertainBtn').disabled=!open.some(x=>x.auto&&x.after);
+  if(!arr.length){list.innerHTML='<div class="empty-box">선택한 항목이 없습니다.</div>';return;}
+  list.innerHTML=arr.map(x=>{
+    const ctx=issueContextV37(x);
+    const left=ctx.left?`<span class="ctx-word">${esc(ctx.left)}</span> `:'';
+    const right=ctx.right?` <span class="ctx-word">${esc(ctx.right)}</span>`:'';
+    const change=x.after?`<span class="before">${esc(x.before)}</span><span class="arrow">→</span><span class="after">${esc(x.after)}</span>`:`<span class="before no-strike">${esc(x.before)}</span>`;
+    const g=proofGroupV38(x),label=g==='jamo'?'자모깨짐':g==='spell'?'맞춤법':'오타';
+    return `<article class="issue issue-compact"><div class="issue-top"><b>${x.unit}${unitLabel(state.single.type)}</b><span class="badge error">${label}</span></div><div class="issue-line compact-line">${left}${change}${right}</div><div class="issue-actions compact-actions"><button class="mini" data-i="${x.id}" data-act="loc">위치 보기</button>${x.after?`<button class="mini apply" data-i="${x.id}" data-act="apply">수정 적용</button>`:''}<button class="mini" data-i="${x.id}" data-act="ignore">유지</button></div></article>`;
+  }).join('');
+};
+
+function levenshteinV38(a,b){
+  const n=a.length,m=b.length,dp=Array.from({length:n+1},()=>new Uint16Array(m+1));
+  for(let i=0;i<=n;i++)dp[i][0]=i;
+  for(let j=0;j<=m;j++)dp[0][j]=j;
+  for(let i=1;i<=n;i++)for(let j=1;j<=m;j++)dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+  return dp[n][m];
+}
+
+function compareIssueV38(r){
+  if(!r || r.type!=='변경' || !r.a || !r.b) return null;
+  const A=r.a.text,B=r.b.text;
+  if(charKey(A)===charKey(B)) return null; // 문장부호/공백 차이 제외
+
+  // B 작업본에 낱자 자모가 섞인 경우
+  const jm=B.match(/[가-힣ㄱ-ㅎㅏ-ㅣ]*[ㄱ-ㅎㅏ-ㅣ]+[가-힣ㄱ-ㅎㅏ-ㅣ]*/);
+  if(jm && jm[0].length>=2) return {group:'jamo',label:'자모깨짐'};
+
+  // 알려진 오타/맞춤법 규칙: A가 정상형이고 B가 오류형일 때만 표시
+  for(const [bad,good,reason] of rules){
+    if(reason==='띄어쓰기') continue;
+    if(B.includes(bad) && A.includes(good)){
+      const spell=/표준|활용/.test(reason) && !/오타|중복/.test(reason);
+      return {group:spell?'spell':'typo',label:spell?'맞춤법':'오타'};
+    }
+  }
+
+  // 한 어절만 1글자 수준으로 달라진 경우만 오타로 간주
+  const parts=diffWordsWithSpace(A,B);
+  const rem=parts.filter(p=>p.removed).map(p=>p.value.trim()).filter(Boolean);
+  const add=parts.filter(p=>p.added).map(p=>p.value.trim()).filter(Boolean);
+  if(rem.length===1 && add.length===1){
+    const aw=(rem[0].match(/[가-힣]{2,}/)||[])[0]||'';
+    const bw=(add[0].match(/[가-힣]{2,}/)||[])[0]||'';
+    if(aw && bw && Math.abs(aw.length-bw.length)<=1 && levenshteinV38(aw,bw)<=1)
+      return {group:'typo',label:'오타'};
+  }
+  return null;
+}
+
+function renderCompareFiltersV38(items){
+  ensureFilterBarsV37();
+  const counts={all:items.length,typo:0,jamo:0,spell:0};
+  items.forEach(o=>counts[o.issue.group]++);
+  const defs=[['all','전체'],['typo','오타'],['jamo','자모깨짐'],['spell','맞춤법']];
+  $('#compareFilterBar').innerHTML=defs.map(([k,label])=>`<button class="filter-btn ${compareFilterV37===k?'active':''}" data-cfilter="${k}">${label} <span>${counts[k]||0}</span></button>`).join('');
+}
+
+renderCompareRows = function(){
+  ensureFilterBarsV37();
+  const items=state.aligned.map(r=>({r,issue:compareIssueV38(r)})).filter(o=>o.issue);
+  renderCompareFiltersV38(items);
+  const shown=compareFilterV37==='all'?items:items.filter(o=>o.issue.group===compareFilterV37);
+  const c={typo:0,jamo:0,spell:0};items.forEach(o=>c[o.issue.group]++);
+  $('#compareSummary').innerHTML=`오타 검사 <b>${items.length}건</b> · 오타 ${c.typo} · 자모깨짐 ${c.jamo} · 맞춤법 ${c.spell}`;
+  if(!shown.length){$('#compareList').innerHTML='<div class="empty-box">선택한 항목이 없습니다.</div>';return;}
+  $('#compareList').innerHTML=shown.map(({r,issue})=>{
+    const idx=state.aligned.indexOf(r);
+    return `<article class="compare-row" data-select-row="${idx}"><div class="compare-row-head"><b>${issue.label}</b><span class="badge error">${issue.label}</span></div><div class="diff-view"><b>A 원본:</b> ${diffHtml(r.a,r.b,'a')}<br><b>B 작업본:</b> ${diffHtml(r.a,r.b,'b')}</div><div class="compare-actions"><button class="mini" data-cact="locA" data-row="${idx}">A 원본에서 보기</button><button class="mini" data-cact="locB" data-row="${idx}">B 작업본에서 보기</button><button class="mini apply" data-cact="AtoB" data-row="${idx}">A 내용으로 B 수정</button></div></article>`;
+  }).join('');
+};
+
+// 필터 클릭 시 v3.8 분류로 다시 렌더
+$('#singleFilterBar')?.addEventListener('click',e=>{const b=e.target.closest('[data-sfilter]');if(!b)return;singleFilterV37=b.dataset.sfilter;renderIssues();});
+$('#compareFilterBar')?.addEventListener('click',e=>{const b=e.target.closest('[data-cfilter]');if(!b)return;compareFilterV37=b.dataset.cfilter;renderCompareRows();});
+
+const versionElV38=document.querySelector('h1 .meta');
+if(versionElV38)versionElV38.textContent='v3.8 Browser';
+document.title='문서 교정 도우미 v3.8';
