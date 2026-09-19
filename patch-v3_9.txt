@@ -1,0 +1,86 @@
+// v3.9 patch: A/B 방향과 줄바꿈에 무관한 오타 비교 + 단독교정 종결형 오타 보강
+function compactTextV39(s){
+  return (s||'').normalize('NFC').replace(/\s+/g,'');
+}
+function letterKeyV39(s){
+  return (s||'').normalize('NFC').replace(/[\s\p{P}\p{S}]/gu,'');
+}
+function looseEndingMatchesV39(text,bad){
+  const chars=[...bad];
+  const escRe=c=>c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const re=new RegExp(chars.map(escRe).join('[\\s\\r\\n]*'),'g');
+  return [...text.matchAll(re)];
+}
+
+// 단독 교정: '습나다' 같은 종결형 오타가 줄바꿈/텍스트런 사이에 끊겨도 검출
+const scanUnitV39Base=scanUnit;
+scanUnit=function(text,unit){
+  const out=scanUnitV39Base(text,unit);
+  const endings=[['습나다','습니다'],['합나다','합니다'],['됩나다','됩니다'],['입나다','입니다']];
+  for(const [bad,good] of endings){
+    for(const m of looseEndingMatchesV39(text,bad)){
+      const raw=m[0],pos=m.index||0;
+      if(!out.some(x=>x.index===pos && compactTextV39(x.before)===bad))
+        addIssue(out,unit,'확정 오류','오타',raw,good,pos,'종결형 오타',true);
+    }
+  }
+  return out;
+};
+
+function compareIssueV39(r){
+  if(!r||r.type!=='변경'||!r.a||!r.b)return null;
+  const A=r.a.text||'',B=r.b.text||'';
+  const Ak=letterKeyV39(A),Bk=letterKeyV39(B);
+  if(Ak===Bk)return null; // 줄바꿈/공백/문장부호 차이는 비교하지 않음
+
+  // 자모 깨짐은 어느 쪽에 있든 동일하게 검출
+  const jamoRe=/[가-힣ㄱ-ㅎㅏ-ㅣ]*[ㄱ-ㅎㅏ-ㅣ]+[가-힣ㄱ-ㅎㅏ-ㅣ]*/;
+  const aj=A.match(jamoRe),bj=B.match(jamoRe);
+  if(aj&&aj[0].length>=2&&!bj) return {group:'jamo',label:'자모깨짐',side:'A'};
+  if(bj&&bj[0].length>=2&&!aj) return {group:'jamo',label:'자모깨짐',side:'B'};
+  if((aj&&aj[0].length>=2)||(bj&&bj[0].length>=2)) return {group:'jamo',label:'자모깨짐',side:aj?'A':'B'};
+
+  // 맞춤법/오타 규칙은 A/B 어느 쪽이 오류여도 동일하게 검출
+  const Ac=compactTextV39(A),Bc=compactTextV39(B);
+  for(const [bad,good,reason] of rules){
+    if(reason==='띄어쓰기')continue;
+    const badc=compactTextV39(bad),goodc=compactTextV39(good);
+    const spell=/표준|활용/.test(reason)&&!/오타|중복/.test(reason);
+    const issue={group:spell?'spell':'typo',label:spell?'맞춤법':'오타'};
+    if(Bc.includes(badc)&&Ac.includes(goodc))return {...issue,side:'B'};
+    if(Ac.includes(badc)&&Bc.includes(goodc))return {...issue,side:'A'};
+  }
+
+  // 사전에 없는 1글자 수준 철자 차이: 모든 공백/줄바꿈을 제거한 뒤 대칭 비교
+  let p=0;
+  while(p<Ak.length&&p<Bk.length&&Ak[p]===Bk[p])p++;
+  let ae=Ak.length-1,be=Bk.length-1;
+  while(ae>=p&&be>=p&&Ak[ae]===Bk[be]){ae--;be--;}
+  const amid=Ak.slice(p,ae+1),bmid=Bk.slice(p,be+1);
+  if((amid||bmid) && Math.max(amid.length,bmid.length)<=10 && Math.abs(amid.length-bmid.length)<=1 && levenshteinV38(amid,bmid)<=1)
+    return {group:'typo',label:'오타',side:null};
+  return null;
+}
+
+// v3.8 비교 판정을 v3.9 대칭/줄바꿈 무시 판정으로 교체
+compareIssueV38=compareIssueV39;
+
+// 비교 결과에 어느 쪽에서 감지됐는지 짧게 표시
+renderCompareRows=function(){
+  ensureFilterBarsV37();
+  const items=state.aligned.map(r=>({r,issue:compareIssueV39(r)})).filter(o=>o.issue);
+  renderCompareFiltersV38(items);
+  const shown=compareFilterV37==='all'?items:items.filter(o=>o.issue.group===compareFilterV37);
+  const c={typo:0,jamo:0,spell:0};items.forEach(o=>c[o.issue.group]++);
+  $('#compareSummary').innerHTML=`오타 검사 <b>${items.length}건</b> · 오타 ${c.typo} · 자모깨짐 ${c.jamo} · 맞춤법 ${c.spell}<span class="hint"> · 줄바꿈/공백 차이 제외</span>`;
+  if(!shown.length){$('#compareList').innerHTML='<div class="empty-box">선택한 항목이 없습니다.</div>';return;}
+  $('#compareList').innerHTML=shown.map(({r,issue})=>{
+    const idx=state.aligned.indexOf(r);
+    const sideText=issue.side?` · ${issue.side}에서 감지`:'';
+    return `<article class="compare-row" data-select-row="${idx}"><div class="compare-row-head"><b>${issue.label}${sideText}</b><span class="badge error">${issue.label}</span></div><div class="diff-view"><b>A 원본:</b> ${diffHtml(r.a,r.b,'a')}<br><b>B 작업본:</b> ${diffHtml(r.a,r.b,'b')}</div><div class="compare-actions"><button class="mini" data-cact="locA" data-row="${idx}">A 원본에서 보기</button><button class="mini" data-cact="locB" data-row="${idx}">B 작업본에서 보기</button>${issue.side==='A'?`<button class="mini apply" data-cact="BtoA" data-row="${idx}">B 내용으로 A 수정</button>`:`<button class="mini apply" data-cact="AtoB" data-row="${idx}">A 내용으로 B 수정</button>`}</div></article>`;
+  }).join('');
+};
+
+const versionElV39=document.querySelector('h1 .meta');
+if(versionElV39)versionElV39.textContent='v3.9 Browser';
+document.title='문서 교정 도우미 v3.9';
