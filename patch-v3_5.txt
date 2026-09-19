@@ -1,0 +1,52 @@
+// v3.5 patch: 완성형 한글 오타 보강 + 단독 교정 위치 강조 복구
+rules.push(
+  ['습나다','습니다','문장 종결형 오타'],
+  ['합나다','합니다','문장 종결형 오타'],
+  ['배테랑','베테랑','표준 표기'],
+  ['북한이탈주미','북한이탈주민','철자 오타'],
+  ['추진아고','추진하고','철자 오타']
+);
+
+function renderSingleLocatedPreviewV35(x){
+  const d=state.single,target=$('#singlePreview');
+  if(!d||d.type==='pdf')return;
+  const units=(d.originalUnits&&d.originalUnits.length?d.originalUnits:d.units);
+  target.innerHTML=`<div class="text-preview">${units.map((text,i)=>{
+    const unit=i+1;
+    let body=esc(text);
+    let active='';
+    if(unit===x.unit){
+      let idx=text.indexOf(x.before,Math.max(0,(x.index||0)-20));
+      if(idx<0)idx=text.indexOf(x.before);
+      if(idx>=0){
+        body=esc(text.slice(0,idx))+`<span class="doc-diff">${esc(text.slice(idx,idx+x.before.length))}</span>`+esc(text.slice(idx+x.before.length));
+        active=' active-diff';
+      }
+    }
+    return `<section class="unit-card${active}" data-unit="${unit}"><h4>원본 · ${unit}${unitLabel(d.type)}</h4><pre>${body}</pre></section>`;
+  }).join('')}</div>`;
+}
+
+locateIssue=function(x){
+  const d=state.single,ta=singleTextarea(x.unit);
+  if(!d||!ta)return;
+  let idx=ta.value.indexOf(x.before,Math.max(0,x.index-12));
+  if(idx<0)idx=ta.value.indexOf(x.before);
+  if(idx<0){setStatus('현재 텍스트에서 해당 위치를 찾지 못했습니다.',true);return;}
+
+  ta.scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(()=>{
+    ta.focus();
+    ta.setSelectionRange(idx,idx+x.before.length);
+    const box=ta.closest('.edit-unit');
+    box.classList.add('flash');
+    setTimeout(()=>box.classList.remove('flash'),1400);
+  },220);
+
+  if(d.type==='pdf'){
+    scrollPreview($('#singlePreview'),d,x.unit);
+  }else{
+    renderSingleLocatedPreviewV35(x);
+    scrollPreview($('#singlePreview'),d,x.unit);
+  }
+};
