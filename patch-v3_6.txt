@@ -1,0 +1,64 @@
+// v3.6 patch: 줄바꿈 오검출 제외 + 교정 후보 카드 간소화
+const scanUnitV35 = scanUnit;
+scanUnit = function(text, unit){
+  return scanUnitV35(text, unit).filter(x => !/[\r\n]/.test(x.before || ''));
+};
+
+function issueContextV36(x){
+  const d = state.single;
+  if(!d) return {left:'', right:''};
+  const source = (d.originalUnits && d.originalUnits[x.unit-1] != null)
+    ? d.originalUnits[x.unit-1]
+    : (d.units[x.unit-1] || '');
+  let idx = source.indexOf(x.before, Math.max(0, (x.index || 0) - 20));
+  if(idx < 0) idx = source.indexOf(x.before);
+  if(idx < 0) return {left:'', right:''};
+  const leftPart = source.slice(0, idx).trim();
+  const rightPart = source.slice(idx + (x.before || '').length).trim();
+  const left = leftPart ? (leftPart.split(/\s+/).pop() || '') : '';
+  const right = rightPart ? (rightPart.split(/\s+/)[0] || '') : '';
+  return {left, right};
+}
+
+renderIssues = function(){
+  const arr = state.issues.filter(x => x.state === 'open');
+  const sum = $('#proofSummary'), list = $('#issueList');
+  const c = {};
+  arr.forEach(x => c[x.category] = (c[x.category] || 0) + 1);
+  sum.textContent = `교정 결과 ${arr.length}건 · 확정 오류 ${c['확정 오류']||0} · 검토 필요 ${c['검토 필요']||0} · 문장부호 추천 ${c['문장부호 추천']||0}`;
+  $('#applyCertainBtn').disabled = !arr.some(x => x.category === '확정 오류' && x.auto && x.after);
+  if(!arr.length){
+    list.innerHTML = '<div class="empty-box">현재 열린 교정 후보가 없습니다.</div>';
+    return;
+  }
+  list.innerHTML = arr.map(x => {
+    const ctx = issueContextV36(x);
+    const left = ctx.left ? `<span class="ctx-word">${esc(ctx.left)}</span> ` : '';
+    const right = ctx.right ? ` <span class="ctx-word">${esc(ctx.right)}</span>` : '';
+    const change = x.after
+      ? `<span class="before">${esc(x.before)}</span><span class="arrow">→</span><span class="after">${esc(x.after)}</span>`
+      : `<span class="before no-strike">${esc(x.before)}</span>`;
+    return `<article class="issue issue-compact">
+      <div class="issue-top"><b>${x.unit}${unitLabel(state.single.type)} · ${esc(x.sub)}</b><span class="badge ${badgeClass(x.category)}">${esc(x.category)}</span></div>
+      <div class="issue-line compact-line">${left}${change}${right}</div>
+      <div class="issue-actions compact-actions"><button class="mini" data-i="${x.id}" data-act="loc">위치 보기</button>${x.after?`<button class="mini apply" data-i="${x.id}" data-act="apply">${x.category==='확정 오류'?'수정 적용':'추천 적용'}</button>`:''}<button class="mini" data-i="${x.id}" data-act="ignore">유지</button></div>
+    </article>`;
+  }).join('');
+};
+
+const versionEl = document.querySelector('h1 .meta');
+if(versionEl) versionEl.textContent = 'v3.6 Browser';
+document.title = '문서 교정 도우미 v3.6';
+
+const v36Style = document.createElement('style');
+v36Style.textContent = `
+.issue.issue-compact{padding:7px 8px;margin-bottom:5px}
+.issue-compact .issue-top b{font-size:12px}
+.issue-compact .issue-line{margin-top:4px;font-size:12.5px;line-height:1.45}
+.issue-compact .ctx-word{color:#475569;background:#f8fafc;padding:1px 3px;border-radius:3px}
+.issue-compact .arrow{display:inline-block;margin:0 5px;color:#64748b;font-weight:800}
+.issue-compact .compact-actions{margin-top:5px;gap:4px}
+.issue-compact .mini{padding:4px 7px;font-size:11px}
+.issue-compact .before.no-strike{text-decoration:none}
+`;
+document.head.appendChild(v36Style);
